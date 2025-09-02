@@ -1,0 +1,459 @@
+---
+title: "Wild fire same color columns analysis"
+author: "Priyanka Goel"
+date: "2025-09-02"
+output: html_document
+---
+
+---
+title: "Wildfire Project v1 Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# This chunk sets up the document.
+knitr::opts_chunk$set(echo = TRUE)
+library(reticulate)
+```
+
+### **Important: Python Setup**
+The chunk below will install the necessary Python libraries for this analysis.
+**We only need to run this chunk once.** After the first successful run, comment out the lines to speed up future "Knitting."
+
+```{r python-setup}
+# Use reticulate to install the required Python packages.
+# This ensures they are in the environment R Markdown is using.
+reticulate::py_install(c(
+  "pandas",
+  "matplotlib",
+  "seaborn",
+  "openpyxl",
+  "scipy"# Required by pandas to read .xlsx files
+))
+
+```
+## **Analyzing the deck columns**
+
+### Working with primary deck columns
+
+Here we will load the dataset and perform an initial analysis of the deck-related columns to understand the most common materials and their current status.
+
+```{python}
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+try:
+    df = pd.read_excel('/Users/priyankagoel/Downloads/CAMCOS and HIZ.xlsx', sheet_name='Field data', header=1)
+    print("File loaded successfully!")
+    print("Here are the first 5 rows of this data:")
+    print(df.head())
+except FileNotFoundError:
+    print("Excel file not found. Please place 'CAMCOS and HIZ.xlsx' in the correct directory.")
+    pass
+
+# Analyzing the 'Deck material' column as an example.
+print("\n--- Frequency Table for Deck Material ---")
+deck_material_counts = df['Deck material'].value_counts()
+print(deck_material_counts)
+
+
+#Investigate the relationship between 'Deck material' and 'Deck status'.
+print("\n--- Crosstabulation of Deck Material vs. Deck Status ---")
+deck_crosstab = pd.crosstab(df['Deck material'], df['Deck status'])
+print(deck_crosstab)
+
+#Investigate the relationship between 'Deck board spacing' and 'Deck status'.
+print("\n--- Crosstabulation of Deck board spacing vs. Deck Status ---")
+deck_crosstab_spacing = pd.crosstab(df['Deck board spacing'], df['Deck status'])
+print(deck_crosstab_spacing)
+
+```
+
+**Deck Analysis:**
+
+**Frequency:** Concrete (97) and Wood (61) are the most common deck materials in this dataset. There are also a significant number of entries marked as 'unknown' (49), which is something to keep in mind and is very important when we will make our model.
+
+**Crosstabulation (Material vs. Status):** This is the key finding. The large majority of decks, regardless of their material, are listed as 'needs maintenance'. For instance, 60 out of 61 wood decks and 89 out of 97 concrete decks fall into this category. This suggests that deck maintenance is a very common issue among the properties surveyed.
+
+**Crosstabulation (Board Spacing vs. Status):** When Deck board spacing is flagged as "Need Maintenance," 100% of those decks (102 of them) have an overall Deck status of "needs maintenance." This shows a direct link. However, even when Deck board spacing gets a "Pass," 81 out of 85 of these decks still have an overall status of "needs maintenance." While improper board spacing is one reason for a deck to be flagged, it is not the main reason. There must be other, more common contributing factors.
+
+### Visualizing the Data
+
+Next, we create visualizations to better understand these relationships.
+
+```{python}
+# Crosstab of Deck Material vs. Deck Status
+deck_crosstab = pd.crosstab(df['Deck material'], df['Deck status'])
+
+sns.set_palette("viridis")
+
+# Plotting Deck Material vs. Deck Status
+deck_crosstab.plot(kind='bar', stacked=True, figsize=(10, 6))
+plt.title('Deck Status by Deck Material')
+plt.ylabel('Number of Homes')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
+```
+
+**Analysis of Deck Status by Material:**
+
+The story is "Maintenance everywhere": The most striking feature of this chart is how the dark teal bar (needs maintenance) dominates every single category. Material doesn't seem to be the primary factor, which strongly suggests the reason for the maintenance flag is a common issue not related to the material itself.
+
+```{python}
+# Crosstab of Deck board spacing vs. Deck Status
+deck_crosstab_spacing = pd.crosstab(df['Deck board spacing'], df['Deck status'])
+
+# Plotting Deck board spacing vs. Deck Status
+deck_crosstab_spacing.plot(kind='bar', stacked=True, figsize=(10, 6))
+plt.title('Deck board spacing by Deck status')
+plt.ylabel('Number of Homes')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
+```
+
+### Linking Deck Status to Cal Fire Inspection Results
+
+Let's see if the 'Deck status' has any correlation with the official Cal Fire inspection outcomes.
+
+```{python}
+inspection_col = 'Did it pass the most recent cal fire inspection?'
+deck_status_col = 'Deck status'
+
+# Creating a crosstabulation
+inspection_crosstab = pd.crosstab(df[deck_status_col], df[inspection_col])
+
+print(f"\n--- Crosstabulation of {deck_status_col} vs. {inspection_col} ---")
+print(inspection_crosstab)
+
+# Visualizing it
+inspection_crosstab.plot(kind='bar', stacked=True, figsize=(10, 6))
+plt.title('Cal Fire Inspection Outcome by Deck Status')
+plt.ylabel('Number of Homes')
+plt.xticks(rotation=0)
+plt.tight_layout()
+plt.show()
+```
+
+**"Needs Maintenance" is Ambiguous:** 
+
+Looking at the largest bar on the chart, for the 212 homes with a deck needing maintenance, the outcomes are almost evenly split between passing and failing:
+- 48 Failed the inspection.
+- 46 Passed the inspection.
+
+### Checking the specific reason where deck status needs maintenance
+
+Let's break down the "needs maintenance" category to find the specific structural issues.
+
+```{python}
+# Filter for only decks that need maintenance
+decks_nm = df[df['Deck status'] == 'needs maintenance'].copy()
+
+# Listing of specific deck issue columns
+deck_structure_columns = [
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Ground level patio with concrete or rock]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Combustible lattice underneath deck]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Enclosed and/or 1/8\" non-combustible screening underneath deck]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Wood decking]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Plastic composite decking]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Concrete decking]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Tile decking]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Metal decking (update 2022)]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Solid decking (no gaps, metal or concrete ok) (update 2022)]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Rotting wood]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Wood stain/paint]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Deck >4 ft. above ground at highest point]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [All deck components, including posts, joists, railings, and walking surfaces must be constructed with noncombustible materials such as metal, tile, concrete, etc.]'
+]
+# Calculate the counts of "Needs maintenance" for each issue
+issue_counts = {}
+for col in deck_structure_columns:
+    if col in decks_nm.columns:
+        count = decks_nm[col].value_counts().get('Needs maintenance', 0)
+        short_name = col.split('[')[-1].replace(']', '').strip()
+        if len(short_name) >= 50:
+            short_name = short_name[:50] + '...'
+        issue_counts[short_name] = count
+
+# Convert to a Series for easy plotting
+issue_series = pd.Series(issue_counts).sort_values(ascending=True)
+
+# --- Visualization ---
+plt.figure(figsize=(12, 10))
+issue_series.plot(kind='barh', color='teal')
+plt.title('Top Deck Structures Requiring Maintenance', fontsize=16, weight='bold')
+plt.xlabel('Number of Homes with this Specific Structure', fontsize=12)
+plt.ylabel('Specific Deck Structure', fontsize=12)
+plt.tight_layout()
+plt.show()
+
+print("\n--- Summary of Top Deck Issues ---")
+print(issue_series.sort_values(ascending=False))
+```
+
+```{python}
+# Filter for only decks that need maintenance
+decks_nm = df[df['Deck status'] == 'needs maintenance'].copy()
+
+fuel_hazard_columns = [
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Fuel between deck boards]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Fuel under combustible deck and/or deck/house stairs]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Flammable materials stored under combustible deck]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Fuel on deck or porch]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Fuel between combustible deck and house]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Fuel adjacent to combustible deck and/or deck/house stairs]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Trees or shrubs on deck in pots]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Up to 10 potted plants, each with a maximum height and width of 36 inches, including the planter,]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [A few or no combustible items that can be easily removed and stored when necessary, such as chair cushions, door mats, etc.]'
+]
+
+# Calculate the counts of "Needs maintenance" for each issue
+issue_counts = {}
+for col in fuel_hazard_columns:
+    if col in decks_nm.columns:
+        count = decks_nm[col].value_counts().get('Needs maintenance', 0)
+        short_name = col.split('[')[-1].replace(']', '').strip()
+        if len(short_name) >= 50:
+            short_name = short_name[:50] + '...'
+        issue_counts[short_name] = count
+
+# Convert to a Series for easy plotting
+issue_series = pd.Series(issue_counts).sort_values(ascending=True)
+
+# --- Visualization ---
+plt.figure(figsize=(12, 10))
+issue_series.plot(kind='barh', color='teal')
+plt.title('Top Deck with fuel hazard Requiring Maintenance', fontsize=16, weight='bold')
+plt.xlabel('Number of Homes with this Specific Fuel Hazards', fontsize=12)
+plt.ylabel('Specific Fuel Hazards', fontsize=12)
+plt.tight_layout()
+plt.show()
+
+print("\n--- Summary of fuel_hazard_columns ---")
+print(issue_series.sort_values(ascending=False))
+```
+
+```{python}
+# Filter for only decks that need maintenance
+decks_nm = df[df['Deck status'] == 'needs maintenance'].copy()
+
+deck_mitigation_columns = [
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Noncombustible wall across slope 15-20\' downslope from deck]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Noncombustible flashing between deck and house]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Wooden deck boards replaced near house with noncombustible]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Wood joists covered with foil tape or metal flashing on top and part of sides]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [6\" metal flashing deck-to-wall]'
+]
+# Calculate the counts of "Needs maintenance" for each issue
+issue_counts = {}
+for col in deck_mitigation_columns:
+    if col in decks_nm.columns:
+        count = decks_nm[col].value_counts().get('Needs maintenance', 0)
+        short_name = col.split('[')[-1].replace(']', '').strip()
+        if len(short_name) >= 50:
+            short_name = short_name[:50] + '...'
+        issue_counts[short_name] = count
+
+# Convert to a Series for easy plotting
+issue_series = pd.Series(issue_counts).sort_values(ascending=True)
+
+# --- Visualization ---
+plt.figure(figsize=(12, 10))
+issue_series.plot(kind='barh', color='teal')
+plt.title('Top Deck with fire mitigation materials Requiring Maintenance', fontsize=16, weight='bold')
+plt.xlabel('Number of Homes with this Specific mitigation', fontsize=12)
+plt.ylabel('Specific mitigation', fontsize=12)
+plt.tight_layout()
+plt.show()
+
+print("\n--- Summary of deck_mitigation_columns ---")
+print(issue_series.sort_values(ascending=False))
+```
+
+```{python}
+# Filter for only decks that need maintenance
+decks_nm = df[df['Deck status'] == 'needs maintenance'].copy()
+
+deck_pergola_columns = [
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Flammable pergola or gazebo e.g. not metal]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Pergola and gazebo has no solid cover (noncombustible slats that cover no more than 10% total of the surface area where a roof cover would be is acceptable).]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Pergola and gazebo has no vegetation and no curtains/drapes/screens.]'
+]
+
+# Calculate the counts of "Needs maintenance" for each deck_pergola_columns
+issue_counts = {}
+for col in deck_pergola_columns:
+    # Check if the column exists to avoid errors
+    if col in decks_nm.columns:
+        # Get the count of 'Needs maintenance' for the current column
+        count = decks_nm[col].value_counts().get('Needs maintenance', 0)
+        # Use a shorter name for the chart labels
+        short_name = col.split('[')[-1].replace(']', '').strip()
+        if len(short_name) >= 50:
+            short_name = short_name[:50] + '...'
+        issue_counts[short_name] = count
+
+# Convert to a Series for easy plotting
+issue_series = pd.Series(issue_counts).sort_values(ascending=True)
+
+# --- Visualization ---
+plt.figure(figsize=(12, 10))
+issue_series.plot(kind='barh', color='teal')
+plt.title('Top Deck with attached Structures on Secks Which Requiring Maintenance', fontsize=16, weight='bold')
+plt.xlabel('Number of Homes with this Specific attached Structures', fontsize=12)
+plt.ylabel('Specific attached Structures', fontsize=12)
+plt.tight_layout()
+plt.show()
+
+print("\n--- Summary of deck_pergola_columns ---")
+print(issue_series.sort_values(ascending=False))
+```
+
+Chart 1: Deck Issues (Composition & Structure) This chart analyzes the physical construction of the decks that need maintenance.
+
+Data Shows: The top bars, Wood decking (58 homes) and Wood stain/paint (53 homes), are descriptive, confirming that the problem decks are mostly wood. The most significant actual vulnerabilities are All deck components... not being noncombustible (40 homes), Combustible lattice underneath deck (32 homes), and Rotting wood (20 homes).
+
+The Insight: The key takeaway here is that the primary structural flaws are related to combustible construction choices. Flammable lattice, in particular, is a major hazard as it acts like kindling and allows embers to easily get underneath a deck. The low counts for fire-resistant features like "Solid decking" (3 homes) suggest that the absence of these good features is the real problem.
+
+Chart 2: Fuel Hazard Issues This chart is extremely revealing and points to the most widespread problem.
+
+Data Shows: The numbers here are dramatically higher than in any other category. Simple housekeeping issues like Fuel on deck or porch (approx. 165 homes), Fuel adjacent to... deck (approx. 145 homes), and Fuel under... deck (approx. 140 homes) are the most common problems by a large margin.
+
+The Insight: This is the smoking gun. The single biggest reason decks are flagged for maintenance is the presence of manageable fuel and debris. These are not fundamental construction flaws but rather issues of ongoing upkeep. Clearing leaves, pine needles, and flammable materials from the deck and its immediate surroundings is the most critical maintenance action.
+
+Chart 3: Attached Structures (Pergolas & Gazebos) This chart looks at a specific, but important, feature.
+
+ Data Shows: The number of homes with these issues is smaller, indicating fewer homes have these structures. However, for those that do, the problems are clear: the structure has no solid cover (approx. 21 homes), is a flammable pergola or gazebo (approx. 17 homes), or has vegetation on it (approx. 15 homes).
+
+The Insight: While less common overall, flammable attached structures like wooden pergolas are a clear risk factor when present. They act as an extension of the deck, creating more surface area that can be ignited by embers.
+
+Chart 4: Fire Mitigation Materials Issues This chart tells a powerful story through "negative evidence."
+
+ Data Shows: The number of homes where existing fire mitigation features (like flashing or noncombustible boards) needed maintenance is extremely low (fewer than 4 homes for any given feature).
+
+**The Insight: **This is a crucial finding. It demonstrates that when fire-hardening features are installed, they rarely fail. This strongly implies that the vast majority of decks needing maintenance simply do not have these mitigations in the first place. The problem isn't that mitigations are failing; it's that they are absent.
+
+Putting it all together, we have a clear profile of a high-risk deck: it's a wood structure with combustible features (like lattice) that lacks fire-hardening mitigations (like flashing) and, most importantly, is surrounded by flammable debris.
+## Including Plots
+
+
+
+```{python}
+from scipy.stats import chi2_contingency
+
+# --- Test 1: Fuel on deck or porch ---
+fuel_col = 'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Fuel on deck or porch]'
+inspection_col = 'Did it pass the most recent cal fire inspection?'
+Wood_joists_covered_with_foil_tape  = 'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Wood joists covered with foil tape or metal flashing on top and part of sides]'
+
+# Create the crosstab
+fuel_crosstab = pd.crosstab(df[fuel_col], df[inspection_col])
+
+# Run the Chi-Squared test
+chi2, p_value, _, _ = chi2_contingency(fuel_crosstab)
+
+print("--- Chi-Squared Test for 'Fuel on deck or porch' ---")
+print(f"P-value: {p_value:.4f}")
+if p_value < 0.05:
+    print("Result: The association IS statistically significant.")
+else:
+    print("Result: The association is NOT statistically significant.")
+
+print("\\n" + "="*60 + "\\n")
+
+# --- Test 2: Combustible lattice underneath deck ---
+lattice_col = 'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Combustible lattice underneath deck]'
+
+# Create the crosstab
+lattice_crosstab = pd.crosstab(df[lattice_col], df[inspection_col])
+
+# Run the Chi-Squared test
+chi2, p_value, _, _ = chi2_contingency(lattice_crosstab)
+
+print("--- Chi-Squared Test for 'Combustible lattice underneath deck' ---")
+print(f"P-value: {p_value:.4f}")
+if p_value < 0.05:
+    print("Result: The association IS statistically significant.")
+else:
+    print("Result: The association is NOT statistically significant.")
+print("\\n" + "="*60 + "\\n")
+# -----Test 3: Wood decking------------
+lattice_col = 'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Wood decking]'
+
+# Create the crosstab
+lattice_crosstab = pd.crosstab(df[lattice_col], df[inspection_col])
+
+# Run the Chi-Squared test
+chi2, p_value, _, _ = chi2_contingency(lattice_crosstab)
+
+print("--- Chi-Squared Test for 'Wood decking' ---")
+print(f"P-value: {p_value:.4f}")
+if p_value < 0.05:
+    print("Result: The association IS statistically significant.")
+else:
+    print("Result: The association is NOT statistically significant.")
+
+print("\\n" + "="*60 + "\\n")
+# -----Test 4: Wood_joists_covered_with_foil_tape------------
+lattice_col = 'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Wood joists covered with foil tape or metal flashing on top and part of sides]'
+
+
+# Create the crosstab
+lattice_crosstab = pd.crosstab(df[lattice_col], df[inspection_col])
+
+# Run the Chi-Squared test
+chi2, p_value, _, _ = chi2_contingency(lattice_crosstab)
+
+print("--- Chi-Squared Test for 'Wood_joists_covered_with_foil_tape' ---")
+print(f"P-value: {p_value:.4f}")
+if p_value < 0.05:
+    print("Result: The association IS statistically significant.")
+else:
+    print("Result: The association is NOT statistically significant.")
+```
+```{python}
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from scipy.stats import chi2_contingency
+
+# Combine all deck issue columns into one list
+all_deck_columns = deck_structure_columns + fuel_hazard_columns + deck_mitigation_columns + deck_pergola_columns
+
+all_deck_columns = [col for col in all_deck_columns if col in df.columns]
+
+
+deck_df = df[all_deck_columns].copy()
+deck_df.columns = [col.split('[')[-1].replace(']', '').strip() for col in all_deck_columns]
+
+
+# Function to calculate Cramér's V
+def cramers_v(x, y):
+    confusion_matrix = pd.crosstab(x, y)
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    phi2 = chi2 / n
+    r, k = confusion_matrix.shape
+    phi2corr = max(0, phi2 - ((k-1)*(r-1))/(n-1))
+    rcorr = r - ((r-1)**2)/(n-1)
+    kcorr = k - ((k-1)**2)/(n-1)
+    return np.sqrt(phi2corr / min((kcorr-1), (rcorr-1)))
+
+# Create an empty matrix to store the results
+num_cols = len(deck_df.columns)
+cramer_matrix = pd.DataFrame(np.zeros((num_cols, num_cols)), index=deck_df.columns, columns=deck_df.columns)
+
+# Calculate Cramér's V for each pair of columns
+for col1 in deck_df.columns:
+    for col2 in deck_df.columns:
+        cramer_matrix.loc[col1, col2] = cramers_v(deck_df[col1], deck_df[col2])
+
+# --- Plot the Heatmap ---
+plt.figure(figsize=(75, 55))
+sns.heatmap(cramer_matrix, annot=True, cmap='viridis', fmt='.2f')
+plt.title('Association Matrix (Cramér\'s V) for Deck Issues', fontsize=16, weight='bold')
+plt.show()
+```
