@@ -1,30 +1,36 @@
 ---
-title: "Wildfire_CAMCOS"
-author: "Priyanka Goel"
-date: "2025-09-02"
-output: html_document
+title: "Fall 2025 CAMCOS project"
+subtitle: "Wildfire"
+output: pdf_document
+date: "2025-08-28"
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Introduction 
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+[To write: Describe the dataset (qualitatively) and our objective. Where do the data come from? What are the researchers trying to answer? Why do they care?]
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+## Descriptive Statistics
 
-```{r cars}
-summary(cars)
+[To write: Describe the dataset quantitatively. What are the observational units and variables. How many observational units (in each area) are there? How many variables. How are the variables grouped and who grouped them?]
+
+```#{r, child='./Graphs/your-figure_file.Rmd'}
+# include each graph (including code, output, and description of figure separately)
 ```
 
-## Including Plots
+## Background 
 
-You can also embed plots, for example:
+[To write: describe the statistical methods we will be using. Will probably include some discussion of logistic regression (or multivariate logistic regression), fixed and random effects modeling, perhaps multivariate statistics]
 
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
+## Analysis
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+[To write: Include justification for why we chose the model we'll end up using. Include R code for actually fitting that model. Justification for why model assumptions are appropriate. Formulate conclusions from model (test for significance of effects of interest, for example)]
+
+## Discussion/Results
+
+[To write: discuss implications of findings in the analysis section. Explain what the results mean in context.]
+
+## Future Work
