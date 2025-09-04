@@ -13,6 +13,12 @@ knitr::opts_chunk$set(echo = TRUE)
 
 [To write: Describe the dataset (qualitatively) and our objective. Where do the data come from? What are the researchers trying to answer? Why do they care?]
 
+Wildfire poses a growing risk to homes in California’s wildland-urban interface (WUI). Studies have shown that homes built more recently, especially after the 2008 WUI Building Codes (CH7A), are more likely to survive wildfire events. This has led to the question, Can the year a structure was built serve as a useful proxy for wildfire hazard and mitigation features?
+
+California’s building codes change over time, and newer homes are often built with better materials and designs to resist fire. However, building materials and protective features degrade over time, and some components, like roofs, are commonly replaced regardless of the original construction date. As a result, the built year may not always reflect a structure’s current level of wildfire resilience.
+
+We investigate the relationship between built year and the presence or condition of wildfire mitigation features, using data from 175 residential parcels across five sites in Santa Cruz County and the Sierra Nevada Mountains, collected between 2022 and 2024. We compare build year with wildfire hazard data based on the Insurance Institute for Business & Home Safety (IBHS) programs, focusing on key home-hardening features such as roofing, venting, and ember-resistant construction. Our objective is to assess when build year serves as a reliable indicator of mitigation, and when it falls short, particularly considering maintenance, renovations, and site-specific factors.
+
 ## Descriptive Statistics
 
 [To write: Describe the dataset quantitatively. What are the observational units and variables. How many observational units (in each area) are there? How many variables. How are the variables grouped and who grouped them?]
