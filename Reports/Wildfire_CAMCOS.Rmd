@@ -23,7 +23,7 @@ We investigate the relationship between built year and the presence or condition
 
 [To write: Describe the dataset quantitatively. What are the observational units and variables. How many observational units (in each area) are there? How many variables. How are the variables grouped and who grouped them?]
 
-```#{r, child='./Graphs/your-figure_file.Rmd'}
+```{r, child='../Graphs/Cal Fire Inspection results by community.Rmd'}
 # include each graph (including code, output, and description of figure separately)
 ```
 

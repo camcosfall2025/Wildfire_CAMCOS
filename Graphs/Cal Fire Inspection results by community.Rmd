@@ -1,0 +1,58 @@
+---
+title: " "
+output: html_document
+---
+
+```{r, include = FALSE}
+library(ggplot2)
+library(dplyr)
+raw <- read.csv("../Data/CAMCOS and HIZ - Field data.csv")
+headers <- as.character(raw[1, ])
+```
+
+```{r, include = FALSE}
+df <- raw[-c(0,1), ]
+colnames(df) <- headers
+df <- df[ , -1]
+```
+
+```{r, include = FALSE}
+ community_col  <- "Community"
+ inspection_col <- "Did it pass the most recent cal fire inspection?"
+ 
+# Summarising yes/no/uncertain by community
+pass_by_comm <- df %>%
+  group_by(Community = .data[[community_col]], 
+           Outcome   = .data[[inspection_col]]) %>%
+  summarise(n = n(), .groups = "drop_last") %>%
+  mutate(pct = 100 * n / sum(n)) %>%
+  ungroup()
+```
+
+```{r, echo = FALSE}
+ggplot(pass_by_comm, aes(x = Community, y = pct, fill = Outcome)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            position = position_dodge(width = 0.9),
+            vjust = -0.25, size = 3.5) + 
+  labs(title = "CAL FIRE Inspection Outcomes by Community",
+       x = "Community", y = "Percent of properties") +
+  scale_fill_manual(
+    values = c(
+      "Yes" = "forestgreen",
+      "No" = "firebrick",
+      "Uncertain" = "steelblue"
+    )
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+Across all communities, a majority of properties fall into the “Uncertain” category, making it difficult to draw strong conclusions on compliance. 
+
+- Saratoga leads with about 85% uncertain outcomes and very few clear passes or fails, suggesting incomplete or inconsistent reporting. 
+- Felton follows with nearly 59% uncertain. Paradise and Redwood Estates each have about one-third of homes passing, but nearly half uncertain. 
+- By contrast, Tahoe-Donner stands out with the highest failure rate (37%) and a low pass rate (17%), showing more properties in need of fire safety improvements. 
+
+Overall, the dominance of uncertain results limits clarity, but Tahoe-Donner reveals the most definite challenges.
+
