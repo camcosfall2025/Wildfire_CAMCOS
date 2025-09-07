@@ -69,4 +69,27 @@ ax.set_ylim(0, max(percentage_crosstab.max()) * 1.25)
 plt.show()
 
 ```
+**Insight 1: A "Satisfactory" Wood Deck is a Negative Sign**
 
+This is the most critical and surprising finding from the chart.
+
+The failure rate (No) for homes where a wood deck was present and in "Satisfactory condition" is 29.2%. This is the highest failure rate of the three categories. In contrast, the failure rate for homes where the wood deck "Needs maintenance" is only 12.1%.
+
+The Insight: It tells us that a well-maintained wood deck does not guarantee a home will pass the inspection; in fact, it's associated with a higher failure rate. This strongly suggests that homes are failing for other, more severe reasons that are completely unrelated to the deck's condition. 
+
+**Insight 2: The "Pass" Rate is Relatively Stable**
+
+The pass rate (Yes) is fairly consistent across all three categories, hovering between 18.8% and 31.7%. There isn't a dramatic difference.
+
+The Insight: This reinforces the idea that the presence or condition of a wood deck is not a primary driver of passing the inspection either.
+
+**Insight 3: Why the P-value was "Borderline"**
+
+This chart visually explains the borderline p-value.
+
+The Chi-Squared test picked up on the subtle differences in the distribution of outcomes between the three categories. The fact that the "Satisfactory" group had the highest failure rate, while the "Needs maintenance" group had the lowest, is a non-random pattern, even if it's not a dramatic one.
+
+However, because the "Uncertain" category is so large in all three groups, it dilutes the overall effect, preventing the p-value from being strongly significant (i.e., less than 0.05).
+
+**Final Conclusion**
+The presence or condition of a wood deck is not a reliable standalone predictor of the Cal Fire inspection outcome. The relationship is complex and heavily influenced by other factors. A home with a perfect wood deck can still fail, and a home with a wood deck needing maintenance can still pass, depending on the overall condition of the property.
