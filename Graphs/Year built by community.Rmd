@@ -17,7 +17,7 @@ colnames(df) <- headers
 df <- df[ , -1]
 ```
 
-```{r}
+```{r, include = FALSE}
 df <- df %>%
   mutate(Year.built = as.numeric(df$`Year built`),  
          decade = paste0(floor(Year.built / 10) * 10, "s"))
@@ -31,7 +31,7 @@ year_comm_summary <- df %>%
 
 ```
 
-```{r}
+```{r, echo = FALSE}
 year_comm_summary$Community <- factor(year_comm_summary$Community, 
                                       levels = c("Redwood Estates", "Felton", "Saratoga", "Paradise", "Tahoe-Donner"))
 
@@ -39,7 +39,7 @@ year_comm_summary$Community <- factor(year_comm_summary$Community,
 ggplot(year_comm_summary, aes(x = Community, y = pct_within_comm, fill = factor(decade))) +
   geom_col(position = "stack") +
   geom_text(aes(label = paste0(round(pct_within_comm,0), "%\n(",n,")")),
-            position = position_stack(vjust = 0.7), size = 2.5, color = "white") +
+            position = position_stack(vjust = 0.5), size = 2.5, color = "white") +
   labs(title = "Year Built (by decade) by community",
        x = "Community", y = "% of homes", fill = "Decade") +
   coord_flip() +

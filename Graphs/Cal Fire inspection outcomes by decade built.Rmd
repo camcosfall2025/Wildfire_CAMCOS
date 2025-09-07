@@ -17,7 +17,7 @@ colnames(df) <- headers
 df <- df[ , -1]
 ```
 
-```{r}
+```{r, echo = FALSE}
 
 df %>%
   mutate(decade = paste0(floor(as.numeric(df$`Year built`)/ 10) * 10, "s")) %>%
