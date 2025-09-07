@@ -1,0 +1,72 @@
+---
+title: "Inspection Outcome by Wood Decking Status"
+author: "Priyanka Goel"
+date: "2025-09-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# This chunk sets up the document and loads the reticulate package
+# which allows R to run Python code.
+knitr::opts_chunk$set(echo = TRUE)
+library(reticulate)
+```
+
+```{python}
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import textwrap
+import matplotlib as mpl
+
+
+mpl.rcParams['figure.constrained_layout.use'] = True
+
+# --- 1. Load data ---
+df = pd.read_excel('CAMCOS and HIZ.xlsx', sheet_name='Field data', header=1)
+
+# --- 2. Define Columns and Create Crosstab ---
+wood_decking_col = 'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Wood decking]'
+inspection_col = 'Did it pass the most recent cal fire inspection?'
+
+crosstab = pd.crosstab(df[wood_decking_col], df[inspection_col])
+percentage_crosstab = crosstab.div(crosstab.sum(axis=1), axis=0) * 100
+
+# --- 3. Plot setup ---
+sns.set_style("whitegrid")
+fig, ax = plt.subplots(figsize=(12, 6), constrained_layout=True)
+
+percentage_crosstab.plot(
+    kind='bar', 
+    stacked=False,
+    ax=ax,
+    colormap='viridis',
+    width=0.8
+)
+
+# --- 4. Add labels inside bars ---
+for cont in ax.containers:
+    ax.bar_label(cont, labels=[f'{v:.1f}%' for v in cont.datavalues], padding=3)
+
+# --- 5. Titles and labels ---
+title_txt = "Inspection Outcome Rates by Wood Decking Status"
+plt.title(textwrap.fill(title_txt, 50), fontsize=18, weight='bold', pad=14)
+
+plt.xlabel('Wood Decking Status', fontsize=12)
+plt.ylabel('Percentage of Homes (%)', fontsize=12)
+plt.xticks(rotation=0)
+
+# --- 6. Legend (outside, wrapped title) ---
+wrapped_leg_title = textwrap.fill(inspection_col, 25)
+ax.legend(title=wrapped_leg_title, bbox_to_anchor=(1.02, 1), loc='upper left')
+
+# Reserve room for title + legend
+plt.subplots_adjust(right=0.80, top=0.90)
+
+# --- 7. Headroom for labels ---
+ax.set_ylim(0, max(percentage_crosstab.max()) * 1.25)
+
+plt.show()
+
+```
+
