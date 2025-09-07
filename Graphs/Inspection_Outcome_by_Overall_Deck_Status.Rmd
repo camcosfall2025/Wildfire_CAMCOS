@@ -1,0 +1,108 @@
+---
+title: "Inspection Outcome by Overall Deck Status"
+author: "Priyanka Goel"
+date: "2025-09-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+# install.packages(c("readxl", "dplyr", "ggplot2"))
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+
+# --- 1. Load and Prepare the Data ---
+file_path <- "CAMCOS and HIZ.xlsx"
+df <- read_excel(file_path, sheet = "Field data", skip = 1, .name_repair = "unique")
+colnames(df) <- make.names(colnames(df), unique = TRUE)
+
+# --- 2. Data Preparation using dplyr ---
+
+status_order <- c("No", "Uncertain", "Yes")
+
+plot_data <- df %>%
+  count(Deck.status, Did.it.pass.the.most.recent.cal.fire.inspection., name = "count") %>%
+  filter(!is.na(Deck.status), !is.na(Did.it.pass.the.most.recent.cal.fire.inspection.)) %>%
+  mutate(Did.it.pass.the.most.recent.cal.fire.inspection. = factor(Did.it.pass.the.most.recent.cal.fire.inspection., levels = status_order)) %>%
+  group_by(Deck.status) %>%
+  mutate(total_per_category = sum(count)) %>%
+  arrange(Deck.status, desc(Did.it.pass.the.most.recent.cal.fire.inspection.)) %>%
+  mutate(
+    percentage = (count / total_per_category) * 100,
+    cumulative_percentage = cumsum(percentage),
+    label_y_position = cumulative_percentage - 0.5 * percentage,
+    label_text = paste0(sprintf("%.1f%%", percentage), "(", count, ")")
+  ) %>%
+  ungroup()
+
+total_labels <- plot_data %>%
+  group_by(Deck.status, total_per_category) %>%
+  summarise(.groups = 'drop')
+
+# Define a custom color palette
+custom_colors <- c(
+  "No"        = "#440154FF", # Dark Purple
+  "Uncertain" = "#7570b3",   # Lighter Purple/Gray
+  "Yes"       = "#21908CFF"  # Teal
+)
+
+# --- 3. Create the Enhanced Plot using ggplot2 ---
+ggplot() +
+  geom_bar(
+    data = plot_data,
+    aes(x = Deck.status, y = percentage, fill = Did.it.pass.the.most.recent.cal.fire.inspection.),
+    stat = "identity",
+    position = "stack"
+  ) +
+  geom_text(
+    data = plot_data %>% filter(percentage > 5), 
+    aes(x = Deck.status, y = label_y_position, label = label_text),
+    color = "white",
+    fontface = "bold",
+    size = 4
+  ) +
+  geom_text(
+    data = total_labels,
+    aes(x = Deck.status, y = 103, label = paste0("N=", total_per_category)),
+    vjust = 0,
+    fontface = "bold",
+    size = 4.5
+  ) +
+  # --- 4. Final Touches ---
+  scale_fill_manual(values = custom_colors) +
+  scale_y_continuous(limits = c(0, 115)) +
+  labs(
+    title = "Inspection Outcome by Overall Deck Status",
+    x = "Deck Status",
+    y = "Percentage of Homes (%)",
+    fill = "Inspection Outcome"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    axis.text.x = element_text(size = 12),
+    legend.position = "right"
+  )
+
+```
+
+**"Needs Maintenance" is Ambiguous:** 
+
+Looking at the largest bar on our chart. For the 212 homes with a deck needing maintenance, the outcomes are almost evenly split between passing and failing.
+
+Pass Rate: 46 / 212 = 21.7%
+
+Fail Rate: 48 / 212 = 22.6%
+
+Which says that the cal fire inspection is not clearly related to the deck status done by the team or there might other factors like:
+
+**Other Factors Dominate:** The inspection is failing due to more critical issues (roof, defensible space) that override the deck's status.
+
+**Time Lag:** If a homeowner's deck was marked "needs maintenance" in 2022, but the Cal Fire inspection happened in 2023, the homeowner may have fixed the deck issues in the interim, leading to a "Pass."
