@@ -1,0 +1,93 @@
+---
+title: "Top Deck Structures Requiring Maintenance"
+author: "Priyanka Goel"
+date: "2025-09-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# This chunk sets up the document and loads the reticulate package
+# which allows R to run Python code.
+knitr::opts_chunk$set(echo = TRUE)
+library(reticulate)
+```
+
+
+```{python}
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+df = pd.read_excel('CAMCOS and HIZ.xlsx', sheet_name='Field data', header=1)
+
+
+
+# --- 1. Data Preparation ---
+# Filter for only decks that need maintenance
+decks_nm = df[df['Deck status'] == 'needs maintenance'].copy()
+print(len(decks_nm))
+
+# List of specific deck issue columns
+deck_structure_columns = [
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Ground level patio with concrete or rock]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Combustible lattice underneath deck]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Enclosed and/or 1/8" non-combustible screening underneath deck]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Wood decking]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Plastic composite decking]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Concrete decking]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Tile decking]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Metal decking (update 2022)]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Solid decking (no gaps, metal or concrete ok) (update 2022)]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Rotting wood]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Wood stain/paint]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Deck >4 ft. above ground at highest point]',
+    'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [All deck components, including posts, joists, railings, and walking surfaces must be constructed with noncombustible materials such as metal, tile, concrete, etc.]'
+]
+
+# Calculate the counts of "Needs maintenance" for each issue
+issue_counts = {}
+for col in deck_structure_columns:
+    if col in decks_nm.columns:
+        count = decks_nm[col].value_counts().get('Needs maintenance', 0)
+        short_name = col.split('[')[-1].replace(']', '').strip()
+        if len(short_name) >= 50:
+            short_name = short_name[:50] + '...'
+        issue_counts[short_name] = count
+
+# Convert to a Series and sort for plotting
+issue_series = pd.Series(issue_counts).sort_values(ascending=False)
+
+# Filter out issues with zero count to keep the chart clean
+issue_series = issue_series[issue_series > 0]
+
+sns.set_style("whitegrid")
+fig, ax = plt.subplots(figsize=(14, 10), constrained_layout=True)
+
+# Plot
+issue_series.sort_values(ascending=True).plot(kind='barh', color='teal', ax=ax)
+
+# Add labels
+ax.bar_label(ax.containers[0], padding=3, fontsize=10)
+
+# Wrap y-axis labels
+import textwrap
+ax.set_yticklabels([textwrap.fill(label.get_text(), 40) for label in ax.get_yticklabels()])
+
+# Title + labels
+long_title =  'Top Deck Structures Requiring Maintenance(Total_houses_for_maintenance:212)'
+plt.title(textwrap.fill(long_title, 60), fontsize=12, weight='bold', pad=20)
+
+plt.xlabel('Number of Homes with this Specific Issue', fontsize=10)
+plt.ylabel('Specific Deck Structure', fontsize=12)
+
+plt.show()
+
+
+```
+
+**Insights from the graph**
+
+I created similar graphs for columns with fuel hazard issues, attached structures (Pergolas & Gazebos) and fire mitigation materials issues.
+
+**We have a clear profile of a high-risk deck:** it's a wood structure with combustible features (like lattice) that lacks fire-hardening mitigation (like flashing) and, most importantly, is surrounded by flammable debris.
