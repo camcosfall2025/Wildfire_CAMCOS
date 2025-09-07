@@ -1,0 +1,126 @@
+---
+title: "Deck Status by Deck Material"
+author: "Priyanka Goel"
+date: "2025-09-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+
+# install.packages("readxl")
+# install.packages("dplyr")
+# install.packages("ggplot2")
+# install.packages("viridis")
+
+# Load the necessary libraries for this script
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(viridis)
+
+# --- 1. Load and Prepare the Data ---
+
+
+file_path <- "/Users/priyankagoel/Documents/Study_material/Sem4/Math203(Personal work)/CAMCOS and HIZ.xlsx"
+
+# Added .name_repair = "unique" to handle duplicate column names from the source file.
+df <- read_excel(file_path, sheet = "Field data", skip = 1, .name_repair = "unique")
+
+# Clean column names for easier use in R
+colnames(df) <- make.names(colnames(df), unique = TRUE)
+
+# --- 2. Data Preparation using dplyr ---
+
+status_order <- c("needs maintenance", "absent", "good")
+
+plot_data <- df %>%
+  count(Deck.material, Deck.status, name = "count") %>%
+  filter(!is.na(Deck.material), !is.na(Deck.status)) %>%
+  
+
+  mutate(Deck.status = factor(Deck.status, levels = status_order)) %>%
+  
+  # Group by material to calculate percentages and label positions
+  group_by(Deck.material) %>%
+  mutate(total_per_material = sum(count)) %>%
+  arrange(Deck.material, desc(Deck.status)) %>% # Arrange to match stacking order for cumulative sum
+  mutate(
+    percentage = (count / total_per_material) * 100,
+    cumulative_percentage = cumsum(percentage),
+    label_y_position = cumulative_percentage - 0.5 * percentage,
+    label_text = paste0(sprintf("%.1f%%", percentage), "(", count, ")")
+  ) %>%
+  ungroup()
+
+# Create a separate data frame for the total (N=) labels
+total_labels <- plot_data %>%
+  group_by(Deck.material, total_per_material) %>%
+  summarise() %>%
+  ungroup()
+
+# Define a custom color palette
+custom_colors <- c(
+  "needs maintenance" = "#440154FF", # Dark Purple
+  "good"              = "#21908CFF", # Teal
+  "absent"            = "#927f81"   # Lighter Purple/Gray
+)
+
+# --- 3. Create the Enhanced Plot using ggplot2 ---
+ggplot() +
+  
+  geom_bar(
+    data = plot_data,
+    aes(x = reorder(Deck.material, -total_per_material), y = percentage, fill = Deck.status),
+    stat = "identity",
+    position = "stack"
+  ) +
+  
+  geom_text(
+    data = plot_data %>% filter(percentage > 5), 
+  
+    aes(x = reorder(Deck.material, -total_per_material), y = label_y_position, label = label_text),
+    color = "white",
+    fontface = "bold",
+    size = 3.5
+  ) +
+  geom_text(
+    data = total_labels,
+    aes(x = reorder(Deck.material, -total_per_material), y = 103, label = paste0("N=", total_per_material)),
+    vjust = 0,
+    fontface = "bold",
+    size = 4
+  ) +
+  # --- 4. Final Touches ---
+  scale_fill_manual(values = custom_colors) +
+  scale_y_continuous(limits = c(0, 115)) +
+  labs(
+    title = "Deck Status by Material (Percentage and Count View)",
+    x = "Deck Material",
+    y = "Percentage of Homes (%)",
+    fill = "Deck Status"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 18),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    legend.position = "right"
+  )
+
+
+```
+
+**Key Insights from Deck Status Analysis**
+
+**This chart reveals a critical and consistent finding:** 
+
+the need for deck maintenance is the dominant condition across all common material types. 
+
+For instance, 91.8% (89 homes) of concrete decks and 98.4% (60 homes) of wood decks are flagged as "needs maintenance." 
+
+This strongly suggests that the deck's material is not the primary factor driving its overall status. Instead, the problems are likely due to universal conditions that affect all decks, such as the accumulation of flammable debris or common construction vulnerabilities, rather than flaws inherent to a specific material like wood or composite.
