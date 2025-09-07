@@ -30,8 +30,8 @@ df %>%
             position = position_fill(vjust = 0.5),
             color = "white", size = 2.5) +
   scale_fill_manual(values = c(
-    "Yes" = "#F8766D",
-    "No" = "#00BA38",
+    "No" = "#F8766D",
+    "Yes" = "#00BA38",
     "Uncertain" = "#619CFF"
   ))  + 
   labs(title = "Inspection outcomes by decade built",
