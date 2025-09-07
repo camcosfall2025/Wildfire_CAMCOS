@@ -1,0 +1,49 @@
+---
+title: ''
+output: html_document
+date: "2025-09-07"
+---
+
+```{r, include = FALSE}
+library(ggplot2)
+library(dplyr)
+raw <- read.csv("../Data/CAMCOS and HIZ - Field data.csv")
+headers <- as.character(raw[1, ])
+```
+
+```{r, include = FALSE}
+df <- raw[-c(0,1), ]
+colnames(df) <- headers
+df <- df[ , -1]
+```
+
+```{r}
+
+df %>%
+  mutate(decade = paste0(floor(as.numeric(df$`Year built`)/ 10) * 10, "s")) %>%
+  group_by(decade, Inspection = `Did it pass the most recent cal fire inspection?`) %>%
+  summarise(n = n(), .groups = "drop_last") %>%
+  mutate(pct = 100 * n / sum(n)) %>%
+  ggplot(aes(x = factor(decade), y = pct, fill = Inspection)) +
+  geom_col(position = "fill") +
+  geom_text(aes(label = paste0(round(pct,2), "%\n(",n,")")),
+            position = position_fill(vjust = 0.5),
+            color = "white", size = 2.5) +
+  scale_fill_manual(values = c(
+    "Yes" = "#F8766D",
+    "No" = "#00BA38",
+    "Uncertain" = "#619CFF"
+  ))  + 
+  labs(title = "Inspection outcomes by decade built",
+       x = "Decade built", y = "Proportion of outcomes") +
+  theme_minimal()
+
+```
+
+Inspection outcomes vary noticeably across decades, but one consistent trend is that uncertain results dominate across almost every decade, generally above 50%. 
+
+The 1950s take the lead with over 70% uncertain, while the 1980s stand out as the exception, with only 28% uncertain but the lowest pass rate (13.6%) and the highest failure rate (60%). 
+
+In terms of passes, the 1960s (38.5%) and 2020s (37.5%) show the strongest results, with 2020 homes showing no failures at all. Interestingly, the 1920s, 1930s, and 2010s all show equal pass and fail rates (25%, 20%, and 25% respectively). The 1980s and 1990s lean negative with fewer passes than fails, and in most other decades, failure rates are more than double the pass rates. 
+
+Overall, while uncertainty clouds the picture, the 1980s clearly emerge as the weakest-performing decade, while newer homes are trending toward better outcomes.

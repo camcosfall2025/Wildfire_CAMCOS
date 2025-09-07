@@ -1,0 +1,52 @@
+---
+title: ''
+output: html_document
+date: "2025-09-07"
+---
+
+```{r, include = FALSE}
+library(ggplot2)
+library(dplyr)
+raw <- read.csv("../Data/CAMCOS and HIZ - Field data.csv")
+headers <- as.character(raw[1, ])
+```
+
+```{r, include = FALSE}
+df <- raw[-c(0,1), ]
+colnames(df) <- headers
+df <- df[ , -1]
+```
+
+```{r}
+df <- df %>%
+  mutate(Year.built = as.numeric(df$`Year built`),  
+         decade = paste0(floor(Year.built / 10) * 10, "s"))
+
+year_comm_summary <- df %>%
+  filter(!is.na(decade), !is.na(Community)) %>%
+  group_by(Community, decade) %>%
+  summarise(n = n(), .groups = "drop_last") %>%
+  mutate(pct_within_comm = 100 * n / sum(n)) %>%
+  ungroup()
+
+```
+
+```{r}
+year_comm_summary$Community <- factor(year_comm_summary$Community, 
+                                      levels = c("Redwood Estates", "Felton", "Saratoga", "Paradise", "Tahoe-Donner"))
+
+
+ggplot(year_comm_summary, aes(x = Community, y = pct_within_comm, fill = factor(decade))) +
+  geom_col(position = "stack") +
+  geom_text(aes(label = paste0(round(pct_within_comm,0), "%\n(",n,")")),
+            position = position_stack(vjust = 0.7), size = 2.5, color = "white") +
+  labs(title = "Year Built (by decade) by community",
+       x = "Community", y = "% of homes", fill = "Decade") +
+  coord_flip() +
+  theme_minimal(base_size = 12)
+```
+
+The age of homes varies widely across communities, reflecting different growth patterns. Tahoe-Donner is dominated by homes built between the 1980s and 2000s (over 85%), making it one of the newer housing areas. Paradise also shows a strong spike in the 2000s (35%) with a secondary rise in the 2020s, suggesting recent rebuilding activity. Felton’s stock is older, with nearly 75% of homes built before 1980, peaking in the 1970s. Redwood Estates stands out as the oldest community, with over a third of homes built before 1950. Saratoga has a more even mix, with houses spread from the 1940s through the 2000s, reflecting steady development over time.
+
+Overall, this highlights that some communities like Tahoe-Donner and Paradise are largely modern, while others such as Redwood Estates and Felton still have older homes that may face higher wildfire vulnerability without renovation.
+
