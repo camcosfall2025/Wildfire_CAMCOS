@@ -1,0 +1,102 @@
+---
+title: "Inspection Outcome Rates by Siding Material"
+author: "Priyanka Goel"
+date: "2025-09-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# This chunk sets up the document and loads the reticulate package
+# which allows R to run Python code.
+knitr::opts_chunk$set(echo = TRUE)
+library(reticulate)
+```
+
+
+```{python}
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import textwrap
+import matplotlib as mpl
+
+
+mpl.rcParams['figure.constrained_layout.use'] = True
+
+# --- 1) Load data ---
+df = pd.read_excel('CAMCOS and HIZ.xlsx', sheet_name='Field data', header=1)
+
+# --- 2) Columns & crosstab ---
+siding_material_col = 'Siding material'
+inspection_col = 'Did it pass the most recent cal fire inspection?'
+
+crosstab = pd.crosstab(df[siding_material_col], df[inspection_col])
+percentage_crosstab = crosstab.div(crosstab.sum(axis=1), axis=0) * 100
+totals = crosstab.sum(axis=1)
+
+# --- 3) Plot ---
+sns.set_style("whitegrid")
+fig, ax = plt.subplots(figsize=(15, 15), constrained_layout=True)
+
+percentage_crosstab.plot(
+    kind='bar',
+    stacked=False,
+    ax=ax,
+    colormap='viridis',
+    width=0.8
+)
+
+# --- 4) Labels on bars ---
+for cont in ax.containers:
+    ax.bar_label(cont, labels=[f'{v:.1f}%' for v in cont.datavalues], padding=3, fontsize=8)
+
+wrapped_xticks = []
+for cat in percentage_crosstab.index:
+    lbl = f"{cat} (N={int(totals.loc[cat])})"
+    wrapped_xticks.append(textwrap.fill(lbl, 18))  
+ax.set_xticklabels(wrapped_xticks, rotation=30, ha='right')
+
+title_txt = "Inspection Outcome Rates by Siding Material"
+ax.set_title(textwrap.fill(title_txt, 60), fontsize=18, fontweight='bold', pad=12)
+
+ax.set_xlabel('Siding Material (Total Count)', fontsize=12)
+ax.set_ylabel('Percentage of Homes (%)', fontsize=12)
+
+wrapped_leg_title = textwrap.fill(inspection_col, 25)
+ax.legend(title=wrapped_leg_title, bbox_to_anchor=(1.02, 1), loc='upper left', frameon=True)
+
+plt.subplots_adjust(right=0.80, bottom=0.24, top=0.90)
+
+ax.set_ylim(0, max(percentage_crosstab.max()) * 1.25)
+
+plt.show()
+
+
+```
+
+**Insight 1: Combustible vs. Non-Combustible is Not a Clear Predictor**
+
+This is the most surprising and important finding. The simple assumption that "non-combustible siding is better" does not hold true for predicting the inspection outcome in this dataset.
+
+The failure rate (No) for homes with masonry (a non-combustible material) is 28.6%. This is almost identical to the 30.4% failure rate for homes with wood board siding (a combustible material).
+
+The Insight: This strongly suggests that the siding material itself is not the deciding factor for inspectors. A home with fire-resistant masonry is just as likely to fail as a home with wood siding, almost certainly because of other, more critical vulnerabilities like the roof condition or the defensible space.
+
+**Insight 2: Outliers with Small Sample Sizes**
+
+A few materials show very high failure rates, but their sample sizes are too small to draw firm conclusions.
+
+Metal siding has a 66.7% failure rate, and plastic has a 100% failure rate.
+
+The Insight: It's crucial to note that these high rates are based on very few homes (only 6 with metal and 1 with plastic). While these materials performed poorly, we cannot generalize this to a wider population. They are interesting outliers but not a core trend.
+
+**Insight 3: Why the Result is "Borderline Significant"**
+
+This chart perfectly visualizes why the p-value was 0.0664 and not a stronger, more conclusive result.
+
+No Clear Trend: There is no simple pattern. The pass rates (Yes) are remarkably similar across most of the common materials, generally falling between 23% and 33%. The failure rates (No) are inconsistent and don't follow a clear combustible vs. non-combustible pattern.
+
+High Uncertainty: For many of the most common materials (hardboard, plywood, stucco), the largest single category is "Uncertain." This large amount of ambiguity in the outcomes makes it difficult to detect a strong, clear relationship between the variables.
+
+**Final Conclusion for Siding**
+The key conclusion is that siding material, on its own, is a poor and unreliable predictor of the final Cal Fire inspection outcome. The inspection is clearly a holistic assessment where other factors, such as roof condition, defensible space, and general maintenance, play a much more significant role in the final pass/fail decision.
