@@ -1,0 +1,83 @@
+---
+title: "Variable_Category_BubbleChart"
+output: html_document
+date: "2025-09-09"
+---
+
+```{r fig.width=4, fig.height=4, fig.align="center", dpi=300}
+# Wildfire Variable Category Bubble chart
+
+# Install required packages if needed
+required_packages <- c("packcircles","ggplot2","ggforce","viridis",
+                       "colorspace","scales","ggthemes")
+new_packages <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
+if (length(new_packages)) install.packages(new_packages)
+
+# Load libraries
+library(packcircles)
+library(ggplot2)
+library(ggforce)
+library(viridis)
+library(colorspace)
+library(scales)
+library(ggthemes)
+
+# -------- Data --------
+df <- data.frame(
+  Category = c("Information variables", "Roof", "Attic", "Windows", "Siding","Garage",
+               "Noncombustible", "Foundation", "Deck/Patio", "Fence", "Vents", "Fuels",
+               "Man Made", "Outbuilding and Attached", "Count of Trees", "Access and Safety"),
+  Count = c(38, 30, 5, 14, 17, 13, 3, 5, 33, 12, 7, 88, 24, 38, 13, 18)
+)
+
+# -------- Layout --------
+layout <- circleProgressiveLayout(df$Count, sizetype = "area")
+df <- cbind(df, layout)  # adds x, y, radius
+
+# Wrap long names and add counts
+df$Category_wrapped <- df$Category
+df$Category_wrapped <- gsub("Outbuilding and Attached", "Outbuilding\n& Attached", df$Category_wrapped)
+df$Category_wrapped <- gsub("Access and Safety", "Access &\nSafety", df$Category_wrapped)
+df$Category_wrapped <- gsub("Information variables", "Information\nvariables", df$Category_wrapped)
+df$Category_wrapped <- gsub("Count of Trees", "Count of\nTrees", df$Category_wrapped)
+df$Label_with_count <- paste0(df$Category_wrapped, "\n(", df$Count, ")")
+
+# -------- Colors --------
+# Use Tableau 20 and lock colors per category
+n_colors <- length(unique(df$Category))
+fill_map <- setNames(ggthemes::tableau_color_pal("Tableau 20")(n_colors), unique(df$Category))
+df$fill_color <- fill_map[df$Category]
+
+# Softer automatic text color
+get_soft_text_color <- function(hex) {
+  rgb <- col2rgb(hex) / 255
+  lum <- 0.2126*rgb[1,] + 0.7152*rgb[2,] + 0.0722*rgb[3,]
+  ifelse(lum > 0.5, "#333333", "#F0F0F0")  # dark gray vs soft white
+}
+df$text_color <- get_soft_text_color(df$fill_color)
+
+# -------- Text scaling --------
+# Make text size proportional to circle radius
+df$label_size <- rescale(df$radius, to = c(1.6, 2.6))  # adjust range as needed
+
+# -------- Plot --------
+p <- ggplot(df) +
+  ggforce::geom_circle(aes(x0 = x, y0 = y, r = radius, fill = Category),
+                       color = NA, alpha = 0.95) +
+  geom_text(aes(x = x, y = y, label = Label_with_count, 
+                size = label_size, color = text_color),
+            lineheight = 0.9) +
+  scale_size_identity() +   # use the actual label_size values
+  scale_fill_manual(values = fill_map, guide = "none") +
+  scale_color_identity() +
+  coord_equal(expand = TRUE) +
+  theme_void(base_size = 12) +
+  theme(
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.margin = margin(18, 18, 18, 18)
+  ) +
+  labs(title = "Wildfire Variable Categories",
+       subtitle = "Circle size represents the count of variables \n in each category")
+
+print(p)
+```
