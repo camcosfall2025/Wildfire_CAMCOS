@@ -5,70 +5,64 @@ date: "2025-09-07"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-# This chunk sets up the document and loads the reticulate package
-# which allows R to run Python code.
-knitr::opts_chunk$set(echo = TRUE)
-library(reticulate)
-```
 
-```{python}
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import textwrap
-import matplotlib as mpl
+```{r}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(viridis)
+library(stringr)
 
+setwd("/Users/priyankagoel")
+# Load data
+df <- read_excel("CAMCOS and HIZ.xlsx", sheet = "Field data", skip = 1)
 
-mpl.rcParams['figure.constrained_layout.use'] = True
+# Define column names
+wood_decking_col <- "Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn't have deck boards. ) [Wood decking]"
+inspection_col <- "Did it pass the most recent cal fire inspection?"
 
-# --- 1. Load data ---
-df = pd.read_excel('CAMCOS and HIZ.xlsx', sheet_name='Field data', header=1)
+# Crosstab with percentages
+crosstab <- table(df[[wood_decking_col]], df[[inspection_col]])
+percentage_crosstab <- prop.table(crosstab, margin = 1) * 100
+plot_data <- as.data.frame(percentage_crosstab)
+colnames(plot_data) <- c("WoodDecking", "Inspection", "Percentage")
 
-# --- 2. Define Columns and Create Crosstab ---
-wood_decking_col = 'Deck/patio? (absent is that feature does not exist, satisfactory and maintenance is that the feature exists, NA is that feature not required e.g. concrete patio doesn\'t have deck boards. ) [Wood decking]'
-inspection_col = 'Did it pass the most recent cal fire inspection?'
-
-crosstab = pd.crosstab(df[wood_decking_col], df[inspection_col])
-percentage_crosstab = crosstab.div(crosstab.sum(axis=1), axis=0) * 100
-
-# --- 3. Plot setup ---
-sns.set_style("whitegrid")
-fig, ax = plt.subplots(figsize=(12, 6), constrained_layout=True)
-
-percentage_crosstab.plot(
-    kind='bar', 
-    stacked=False,
-    ax=ax,
-    colormap='viridis',
-    width=0.8
+# Improve label order manually (optional, based on your image)
+plot_data$WoodDecking <- factor(plot_data$WoodDecking,
+  levels = c("Absent", "Needs maintenance", "Satisfactory condition")
 )
 
-# --- 4. Add labels inside bars ---
-for cont in ax.containers:
-    ax.bar_label(cont, labels=[f'{v:.1f}%' for v in cont.datavalues], padding=3)
-
-# --- 5. Titles and labels ---
-title_txt = "Inspection Outcome Rates by Wood Decking Status"
-plt.title(textwrap.fill(title_txt, 50), fontsize=18, weight='bold', pad=14)
-
-plt.xlabel('Wood Decking Status', fontsize=12)
-plt.ylabel('Percentage of Homes (%)', fontsize=12)
-plt.xticks(rotation=0)
-
-# --- 6. Legend (outside, wrapped title) ---
-wrapped_leg_title = textwrap.fill(inspection_col, 25)
-ax.legend(title=wrapped_leg_title, bbox_to_anchor=(1.02, 1), loc='upper left')
-
-# Reserve room for title + legend
-plt.subplots_adjust(right=0.80, top=0.90)
-
-# --- 7. Headroom for labels ---
-ax.set_ylim(0, max(percentage_crosstab.max()) * 1.25)
-
-plt.show()
+# Plot
+ggplot(plot_data, aes(x = WoodDecking, y = Percentage, fill = Inspection)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.75) +
+  geom_text(
+    aes(label = sprintf("%.1f%%", Percentage)),
+    position = position_dodge(width = 0.8),
+    vjust = -0.5,
+    size = 3.5
+  ) +
+  scale_fill_viridis_d() +
+  labs(
+    title = str_wrap("Inspection Outcome Rates by Wood Decking Status", 40),
+    x = "Wood Decking Status",
+    y = "Percentage of Homes (%)",
+    fill = str_wrap(inspection_col, 25)
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, margin = margin(b = 10)),
+    axis.text.x = element_text(angle = 15, hjust = 1),
+    legend.position = "right",
+    legend.justification = "top",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.margin = margin(t = 30, r = 90, b = 20, l = 20)  # top-right-bottom-left
+  ) +
+  ylim(0, max(plot_data$Percentage) * 1.25)
 
 ```
+
+
 **Insight 1: A "Satisfactory" Wood Deck is a Negative Sign**
 
 This is the most critical and surprising finding from the chart.
