@@ -5,71 +5,94 @@ date: "2025-09-07"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-# This chunk sets up the document and loads the reticulate package
-# which allows R to run Python code.
-knitr::opts_chunk$set(echo = TRUE)
-library(reticulate)
-```
 
 
-```{python}
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import textwrap
-import matplotlib as mpl
+```{r}
+library(tidyverse)
+library(readxl)
+library(stringr)
+
+setwd("/Users/priyankagoel")
 
 
-mpl.rcParams['figure.constrained_layout.use'] = True
+# --- 2. Load Data ---
 
-# --- 1) Load data ---
-df = pd.read_excel('CAMCOS and HIZ.xlsx', sheet_name='Field data', header=1)
+file_path <- 'CAMCOS and HIZ.xlsx'
 
-# --- 2) Columns & crosstab ---
-siding_material_col = 'Siding material'
-inspection_col = 'Did it pass the most recent cal fire inspection?'
+field_data <- read_excel(file_path, sheet = 'Field data', skip = 1)
 
-crosstab = pd.crosstab(df[siding_material_col], df[inspection_col])
-percentage_crosstab = crosstab.div(crosstab.sum(axis=1), axis=0) * 100
-totals = crosstab.sum(axis=1)
 
-# --- 3) Plot ---
-sns.set_style("whitegrid")
-fig, ax = plt.subplots(figsize=(15, 15), constrained_layout=True)
+siding_material_col <- 'Siding material'
+inspection_col <- 'Did it pass the most recent cal fire inspection?'
 
-percentage_crosstab.plot(
-    kind='bar',
-    stacked=False,
-    ax=ax,
-    colormap='viridis',
-    width=0.8
-)
+percentage_data <- field_data %>%
+  rename(siding_material = !!sym(siding_material_col), 
+         inspection_status = !!sym(inspection_col)) %>%
+  # Remove rows where siding_material is NA, if any
+  filter(!is.na(siding_material)) %>%
+  # Add a column with the total count for each siding type
+  add_count(siding_material, name = "total_per_siding") %>%
+  # Count the combinations of siding and inspection status
+  count(siding_material, inspection_status, total_per_siding, name = "count") %>%
+  # Calculate the percentage
+  mutate(percentage = count / total_per_siding * 100) %>%
+  # Create the final x-axis label, e.g., "Wood (N=123)"
+  mutate(siding_label = str_wrap(
+    paste0(siding_material, " (N=", total_per_siding, ")"),
+    width = 18
+  )) %>%
+  ungroup() 
 
-# --- 4) Labels on bars ---
-for cont in ax.containers:
-    ax.bar_label(cont, labels=[f'{v:.1f}%' for v in cont.datavalues], padding=3, fontsize=8)
+# View the resulting data frame
+print(percentage_data)
 
-wrapped_xticks = []
-for cat in percentage_crosstab.index:
-    lbl = f"{cat} (N={int(totals.loc[cat])})"
-    wrapped_xticks.append(textwrap.fill(lbl, 18))  
-ax.set_xticklabels(wrapped_xticks, rotation=30, ha='right')
+# --- 4. Plot Setup (using ggplot2) ---
 
-title_txt = "Inspection Outcome Rates by Siding Material"
-ax.set_title(textwrap.fill(title_txt, 60), fontsize=18, fontweight='bold', pad=12)
+plot <- ggplot(
+    percentage_data, 
+    
+    aes(x = siding_label, y = percentage, fill = inspection_status)
+  ) +
+  geom_col(position = "dodge", width = 0.8) +
+  
+  # --- 5. Add labels on top of bars ---
+  geom_text(
+    aes(label = sprintf("%.1f%%", percentage)), 
+    position = position_dodge(width = 0.9),
+    vjust = -0.5,
+    size = 2.8
+  ) +
+  
+  # --- 6. Titles, Labels, and Legend ---
+  
+  labs(
+    title = str_wrap("Inspection Outcome Rates by Siding Material", width = 60),
+    x = "Siding Material (Total Count)",
+    y = "Percentage of Homes (%)",
+    fill = str_wrap(inspection_col, width = 25)
+  ) +
 
-ax.set_xlabel('Siding Material (Total Count)', fontsize=12)
-ax.set_ylabel('Percentage of Homes (%)', fontsize=12)
+  # --- 7. Theming and Final Adjustments ---
+  theme_minimal(base_size = 14) + 
+  theme(
+    
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    # Center the axis titles
+    axis.title.x = element_text(hjust = 0.5),
+    axis.title.y = element_text(hjust = 0.5),
+    # Rotate x-axis labels for readability
+    axis.text.x = element_text(angle = 30, hjust = 1),
+    # Move legend to the right
+    legend.position = "right",
+    # Add some space around the plot
+    plot.margin = margin(t = 20, r = 20, b = 20, l = 10, unit = "pt")
+  ) +
+  
+  scale_fill_viridis_d() +
+  
+  expand_limits(y = max(percentage_data$percentage) * 1.25)
 
-wrapped_leg_title = textwrap.fill(inspection_col, 25)
-ax.legend(title=wrapped_leg_title, bbox_to_anchor=(1.02, 1), loc='upper left', frameon=True)
-
-plt.subplots_adjust(right=0.80, bottom=0.24, top=0.90)
-
-ax.set_ylim(0, max(percentage_crosstab.max()) * 1.25)
-
-plt.show()
+print(plot)
 
 
 ```
