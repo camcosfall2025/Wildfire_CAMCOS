@@ -14,16 +14,36 @@ knitr::opts_chunk$set(echo = TRUE)
 We took a closer look at the data and noticed a couple of issues that were mentioned in the email from Martina to Kate and Basanth on 9/2/25. We should talk about these and resolve questions (if they haven't already been addressed.)
 
 The questions were: 
-- What is Parcel ID? An alternative enumeration of properties? 
-- We noticed that several properties (the ones that appear in the bottom rows (176 - 222) of the original file (tab: "Field Data") have duplicates among them. That is, the same "UID" is repeated across several rows. The results in these rows differ (different built years, different roof types etc.) For example, property "727e093140" appears in rows 200 - 204 with two shingle roofs and three metal roofs. These rows all have no "year surveyed" in column F. What's up with these properties? Are these consecutive visits to the same property over time? Do you want us to use these data? Or only the most recent observation for each house? Using repeated observations on the same house would make the model to be fitted quite a bit more complicated. 
-- There is information on the "most recent Cal Fire" inspection. Is there also information on when that most recent inspection took place? 
-- Do we know how the slope value was calculated? There seems to be one property with a slope of ~55degrees. That's unbelievably steep. 
-- Some columns (for instance "attic Vents gap size" and "attic Vent materia;") have the entry "unknown" in all rows. I have some memory of you talking about measuring vent gap sizes with a golf tee. That does not make sense if the data set has no known measurements. Are we sure that there is no information about these two variables at all? 
+
+* What is Parcel ID? An alternative enumeration of properties? 
+* We noticed that several properties (the ones that appear in the bottom rows (176 - 222) of the original file (tab: "Field Data") have duplicates among them. That is, the same "UID" is repeated across several rows. The results in these rows differ (different built years, different roof types etc.) For example, property "727e093140" appears in rows 200 - 204 with two shingle roofs and three metal roofs. These rows all have no "year surveyed" in column F. What's up with these properties? Are these consecutive visits to the same property over time? Do you want us to use these data? Or only the most recent observation for each house? Using repeated observations on the same house would make the model to be fitted quite a bit more complicated. 
+  + Update: With the new UID values, there are no more repeated values. Does that mean that the houses that were visited more than once are no longer in this data set? 
+* There is information on the "most recent Cal Fire" inspection. Is there also information on when that most recent inspection took place? 
+* Do we know how the slope value was calculated? There seems to be one property with a slope of ~55degrees. That's unbelievably steep. 
+* Some columns (for instance "attic Vents gap size" and "attic Vent materia;") have the entry "unknown" in all rows. I have some memory of you talking about measuring vent gap sizes with a golf tee. That does not make sense if the data set has no known measurements. Are we sure that there is no information about these two variables at all? 
+* We would like to propose a renaming of some of the columns (and a gentle restructuring of the file - removing the double header, for instance)
 
 ## Some Descriptive Statistics
 
 The CAMCOS team has spent a week summarizing parts of the data to look for patterns that can help us find a good model to fit later on. Here are some of the graphs that have found interesting so far. 
 
-```{r, child='../Graphs/Cal Fire Inspection results by community.Rmd'}
-# include each graph (including code, output, and description of figure separately)
+```{r, child='../Graphs/Year built by community.Rmd'}
 ```
+
+```{r, child='../Graphs/Cal Fire Inspection results by community.Rmd'}
+```
+
+```{r, child='../Graphs/Cal Fire inspection outcomes by decade built.Rmd'}
+```
+
+## Looking ahead
+
+It seems as if the eventual goal is to model hazard status as a function of year built (or perhaps time between built and inspection?) and location. With location as a random factor and time as fixed. We need to discuss what exactly to use as the hazard status. Here are some options:
+
+* The individual columns in binary form (well prepared vs anything else)
+  + Potential problems: There are many columns where the sample size for "well prepared" is very small. That will lead to low power. 
+* The individual columns as multivariate responses (with categories yes, no, unknown, for instance)
+  + Which comparisons are we interested in at the end of the day? "Well prepared" against "not well prepared"? "Well prepared" against "unknown"? Something else?
+* One could create a hazard status (perhaps individually by category - roof, deck, attic vents etc.) by combining information from various columns. How to combine the columns is somewhat subjective - need subject matter expert input. 
+
+Different statistical models that could be used depend on the response variable "hazard status". If the response is quantitative (some sort of hazard score), we could use a mixed effects linear model. If the response is binary, we could use a mixed-effects logistic regression model. If the response is multinomial, we could use a multinomial GLM. 
