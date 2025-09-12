@@ -1,0 +1,252 @@
+---
+title: "Roof Status by Time and Location"
+output: html_document
+date: "2025-09-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(lattice)
+library(lme4)
+library(ggplot2)
+library(performance) # for performance check of glmer
+library(reformulas)
+library(DHARMa)     # for residual diagnostics of glmer
+library(splines)
+
+data <- read.csv("../Data/RoofStatusOnly.csv")
+data <- data[c(1:176),]
+headers <- as.character(data[1, ])
+data$Roof.status <- factor(data$Roof.status, levels = c("needs maintenance", "good"))
+data$Site <- as.factor(data$Site)
+attach(data)
+```
+
+## Analysis of Roof Status as a function of year built and location 
+
+This is an example of a mixed-effects logistic regression model fitted to only the variable "Roof Status" (with the possible values "good" and "needs maintenance") as a function of year built (fixed factor) and location (random factor with five possible levels). The purpose of this document is to investigate potential R packages that could be used to fit such a model and the associated hypothesis test for testing for significant of effects and to conduct model assumption validity checks. Only the first 176 observations in the data file are used (the homes visited before 2024, which do NOT include the repeate visits)
+
+Starting with a graph. Plotting Roof status as a function of time, colored by community. 
+
+```{r scatterplot}
+ggplot(data, aes(x = Year.built, y = as.factor(Roof.status), color = Site)) +
+  geom_jitter(height = 0.1, width = 0, alpha = 0.7) +  
+  labs(x = "Year Built ",
+       y = "Roof status",
+       color = "Location") 
+```
+
+We can see that the houses that have "good" roof status are on average younger than the houses whose roof need maintenance, but it is less clear whether there are significant trends in each location and whether these trends are similar to each other. 
+
+**Important to note:** Some communities have very few roofs in "good" status. Felton has 1, Saratoga has 2, and Redwood Estates has none. That latter fact can cause problems later (fitting slopes for individual sites, since the slope for Redwood Estates cannot be estimated!)
+
+## Fitting the Model
+
+Fitting a mixed-effects logistic regression model with random intercept and fixed (common) slope per community. 
+
+```{r}
+# scale & center quantitative predictor 
+data$Year.built  <- scale(data$Year.built) # rescaling the predictor for more stable fit
+
+model.1 <- glmer(Roof.status ~ Year.built + (1 | Site),
+  data = data,
+  family = binomial(link = "logit"),
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+```
+
+Checking for singularity of model 1
+
+```{r}
+isSingular(model.1, tol = 1e-4)      # FALSE is ideal
+```
+**Interpretation:** Model can be successfully fitted using glmer. 
+
+```{r}
+summary(model.1)            # fixed effects, variance components
+```
+
+**Interpretation:** The estimated slope for "Year built" (0.04) is small and positive. The p-value for the fixed common slope is p=0.8610 (Wald's test) in this model. That means that the proportion of houses who have "good" roof status does not significantly increase with built year if we adjust for location. 
+
+```{r}
+fixef(model.1)              
+exp(fixef(model.1))         
+confint(model.1, method = "Wald")        
+exp(confint(model.1, method = "Wald"))    # CI for the log-odds for "Year.built
+```
+**Interpretation:** The odds of seeing "good" as the roof status change as built year changes. 
+For a one standard deviation increase in built year, a 95% confidence interval for the change in odds of "good" ranges from a 37% decrease in odds to a 74% increase in odds of "good". Since this confidence interval contains no change (0% increase or decrease) the change in odds over time is not significant (if we control for location as a random factor).
+
+```{r}
+VarCorr(model.1)            # random effect variance
+```
+
+This is the estimated variance of the random effect (differences in intercept by location). We'll test later whether this effect is significant. [It probably is!]
+
+```{r}
+ranef(model.1)$Site
+```
+Those are reasonably large differences by site! These effects are on a log-odds scale. 
+
+```{r}
+# Likelihood-ratio test vs. null (no fixed x effect)
+model.0 <- glmer(Roof.status ~ 1 + (1 | Site), data = data, family = binomial(link = "logit"))
+anova(model.0, model.1, test = "Chisq")
+```
+This is an alternative test for the influence of the fixed factor "Year built". 
+Fixed factor "Year built" is not significant in this model (p-value = 0.8641 according to chi-squared test). Two different hypothesis tests were used to check this significance and their results approx agree (Wald's test (p = 0.8610) vs chi-squared test (p = 0.8641)).
+
+```{r}
+# Site specific predictions
+pred.prob <- predict(model.1, type = "response")
+
+Year.built <- scale(Year.built)
+df.pred <- data.frame(pred.prob, Year.built, Site) # calculating predicted probabilities
+
+# visualizing predictions
+ggplot(data, aes(x = Year.built, y = as.numeric(as.factor(Roof.status))-1, color = Site)) +
+  geom_jitter(height = 0.1, width = 0, alpha = 0.7) +  
+  geom_line(data = df.pred, aes(y = pred.prob, x = Year.built, color = Site), linewidth = 1) +
+  scale_y_continuous(breaks = c(0, 1), labels = c("needs maintenance", "good"), 
+                     limits = c(-0.1,1.1)) +
+  labs(x = "Year Built ",
+       y = "Roof status",
+       color = "Location")
+```
+The predicted probabilities of having a "good" roof status depend very little on "Year.built" (lines are gently sloped upward) but they depend very much on "Site". The random effects are very large compared to the fixed effect. In this model, the logit curves (I know they look like line segments, but they're actually curves) are left-right shifted with the same "slopes". The fact that the green curve looks like it has a different slope is because the effect for Redwood estates is very large (big left right shift).
+
+```{r}
+# Logistic regression without random effect
+model.2 <- glm(Roof.status ~ Year.built, data = data, family = binomial(link = "logit"))
+summary(model.2)
+```
+
+Fitting a plain logistic regression model of "Roof status" as a function of "Year built" with out the random predictor "Site". In this model the "Year built" is significant (p = 1.33e-05). However, fitting this model is not very proper, since the random factor "Site" is also significant in model 1 (and thus should not be dropped).
+
+Visualizing the results of the "plain" logistic regression model above.
+
+```{r}
+# visualizing predictions
+pred.logodds.plain <- predict(model.2, type = "link", re.form = NA)
+pred.prob.plain <- exp(pred.logodds.plain)/(1+exp(pred.logodds.plain))
+
+Year.built <- scale(Year.built)
+df.pred <- data.frame(pred.prob.plain, Year.built, Site) # calculating predicted probabilities
+
+ggplot(data, aes(x = Year.built, y = as.numeric(as.factor(Roof.status))-1, color = Site)) +
+  geom_jitter(height = 0.1, width = 0, alpha = 0.7) +  
+  geom_line(data = df.pred, aes(y = pred.prob.plain, x = Year.built), linewidth = 1) +
+  scale_y_continuous(breaks = c(0, 1), labels = c("needs maintenance", "good"), 
+                     limits = c(-0.1,1.1)) +
+  labs(x = "Year Built ",
+       y = "Roof status",
+       color = "Location")
+```
+
+
+```{r}
+anova(model.1, model.2)
+```
+p-value for the significance of the random factor "Site" is (p = 7.344e-12). Meaning that the variance of the random effect on the intercepts of the logistic regression models is significantly different from zero. 
+
+Trying a logistic regression model with Site as a fixed effect.
+
+```{r}
+# logisic regression with both Year built and Site as fixed effects
+model.3 <- glm(Roof.status ~ Year.built + as.factor(Site), data = data, 
+               family = binomial(link = "logit"))
+summary(model.3)
+```
+In this model, "Year built" is again not significant for "Roof status" but the individual sites 
+differ significantly from each other (Felton is used as the baseline site).
+
+```{r}
+# visualizing predictions
+pred.logodds.3 <- predict(model.3, type = "link", re.form = NA)
+pred.prob.3 <- exp(pred.logodds.3)/(1+exp(pred.logodds.3))
+
+Year.built <- scale(Year.built)
+df.pred <- data.frame(pred.prob.3, Year.built, Site) # calculating predicted probabilities
+
+ggplot(data, aes(x = Year.built, y = as.numeric(as.factor(Roof.status))-1, color = Site)) +
+  geom_jitter(height = 0.1, width = 0, alpha = 0.7) +  
+  geom_line(data = df.pred, aes(y = pred.prob.3, x = Year.built, color = Site), linewidth = 1) +
+  scale_y_continuous(breaks = c(0, 1), labels = c("needs maintenance", "good"), 
+                     limits = c(-0.1,1.1)) +
+  labs(x = "Year Built ",
+       y = "Roof status",
+       color = "Location")
+```
+*Follow up question:* It's curious that in the fixed effects model the common slope for "Year Built" is slightly negative, whereas in the mixed effects model that slope is slightly positive. Figure out why that happens! [Suspicion: could be due to different model fitting process. Maximum likelihood for logistic regression with fixed factors. What method is used in GLMER? bootstrap?] In both models the slope is not significantly different from zero. 
+
+
+If site is included as a factor (either random or fixed), then direction of some of the slopes reverses. Paradise, for instance, now has a negative predicted slope. That is, younger houses tend to have fewer "good"s in the roof status than older houses. 
+
+## Residual Diagnostics
+
+```{r}
+set.seed(10)
+sim <- simulateResiduals(model.1, n = 176)   # simulate on fitted model
+```
+
+```{r}
+testUniformity(sim)       # overall fit (uniform residuals is good)
+```
+*Interpretation:* residuals in a logistic regression model are not normally distributed. 
+The "DHARMa" package provide a model validation check for generalized linear mixed effects model such as those produced by glmer. They simulate residuals that should be uniformly distributed if the model assumptions are satisfied. We can see in the above plot that that's not exactly the case. 
+
+
+```{r}
+# Residuals vs. key predictors / grouping
+plotResiduals(sim, data$Year.built)
+plotResiduals(sim, data$Site)
+```
+*Interpretation:* Model residuals are assumed to be entirely random. They should not depend on either the fixed factor or the random factor. In this case, we can see that the residuals indeed do not depend on the fixed factor "Year built". They do, however depend quite a bit on the random factor "Site", both in magnitude and in variance. (Levene's test checks whether the variance of residuals in each site is equal - conclusion: not equal.)
+
+```{r}
+# ------------------------------------------------------------------
+# Random effects diagnostics
+# ------------------------------------------------------------------
+re <- ranef(model.1, condVar = TRUE)
+dotplot(re)                               # BLUPs with CIs (lattice plot)
+```
+
+*Interpretation:* The estimated random effects are largish. It's impossible to tell whether they are normally distributed, since we have only five sites. The estimation of the value for Redwood estates has less certainty than the others (recall that there wasn't a single "good" roof in Redwood Estates. )
+
+
+```{r}
+# ------------------------------------------------------------------
+# Goodness-of-fit / calibration / discrimination
+# ------------------------------------------------------------------
+r2(model.1)  # marginal / conditional R2
+```
+*Interpretation:* The fixed effects model (logistic regression of roof status on year built) explains about 5.8% of the variation in roof status by year built. Adding the random factor "Site" does not explain any additional variation. 
+
+```{r}
+# ------------------------------------------------------------------
+# Nonlinearity check for Year.built (if residual plot suggests it)
+# ------------------------------------------------------------------
+model.spline <- glmer(Roof.status ~ ns(Year.built, df = 3) + (1 | Site),
+                      data = data, family = binomial)
+anova(model.1, model.spline, test = "Chisq")  # improvement?
+AIC(model.1, model.spline)
+```
+*Interpretation:* If we're not satisfied with the normality of the residuals in Model 1, we could fit a model that uses a non-linear function of "Year built" instead of using "Year built" as a linear factor. The above model fits a spline instead. But that does not lead to a significantly better fit. Thus, the linear model is still preferred, even though the residuals are not perfectly normal (close enough...)
+
+```{r}
+# (Trying to) fit mixed effects model with both random intercepts and slopes
+# scale & center quantitative predictor 
+data$Year.built  <- scale(data$Year.built) # rescaling the predictor for more stable fit
+
+model.5 <- glmer(Roof.status ~ Year.built + (Year.built | Site),
+  data = data,
+  family = binomial(link = "logit"),
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+)
+
+isSingular(model.5, tol = 1e-4)      # FALSE is ideal
+check_convergence(model.5)           # from performance
+```
+The model with Site specific intercepts and slopes results in a singularity. My suspicion is that this has to do wit the fact that there is no single house in the data set with "good" roof status in Redwood Estates. Thus, a slope for the site "Redwood Estates" cannot be estimated. 
+
+
